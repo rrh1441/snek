@@ -5,7 +5,6 @@
   <title>Snake Game: User vs. AI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    /* Center the canvas and give it a border */
     body {
       margin: 0;
       background-color: #eee;
@@ -20,7 +19,7 @@
     canvas {
       background-color: #fff;
       border: 2px solid #000;
-      touch-action: none; /* Prevent scrolling on mobile */
+      touch-action: none;
     }
   </style>
 </head>
@@ -32,42 +31,35 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
-    // Use the smaller of the viewport's width or height (minus a margin)
     const margin = 20;
     const availableSize = Math.min(window.innerWidth, window.innerHeight) - margin;
     canvas.width = availableSize;
     canvas.height = availableSize;
 
     // ----- Grid Settings -----
-    const gridCount = 30;  // Number of cells along one side
-    const cellSize = canvas.width / gridCount;  // Calculate cell size based on canvas size
-    const gridWidth = gridCount;  // in cells
-    const gridHeight = gridCount; // in cells
+    const gridCount = 30;
+    const cellSize = canvas.width / gridCount;
+    const gridWidth = gridCount;
+    const gridHeight = gridCount;
 
     // ----- Global Game Variables -----
     let userSnake, aiSnake;
     let tokenPosition = null;
     let gameOver = false;
-    const moveInterval = 200; // game tick in milliseconds
-    let intervalId;           // for the game loop timer
-
-    // Total tokens that can appear during the game.
-    let remainingTokens = 100; // Set token supply to 100
-
-    // For touch/swipe support:
+    const moveInterval = 200;
+    let intervalId;
+    let remainingTokens = 100;
     let swipeStart = null;
 
     // ----- Snake Class -----
     class Snake {
       constructor(initialPosition, direction, color) {
-        this.segments = [initialPosition];  // Array of objects { x, y } (grid coordinates)
-        this.direction = direction;         // "up", "down", "left", or "right"
+        this.segments = [initialPosition];
+        this.direction = direction;
         this.tokenCount = 0;
         this.color = color;
       }
       
-      // Moves the snake in its current direction.
-      // If shouldGrow is true, the tail is not removed.
       move(shouldGrow) {
         const head = this.segments[0];
         const newHead = { x: head.x, y: head.y };
@@ -84,8 +76,6 @@
         return newHead;
       }
       
-      // Returns true if any segment equals the given point.
-      // If includeHead is false, the head is skipped.
       contains(point, includeHead = true) {
         const start = includeHead ? 0 : 1;
         for (let i = start; i < this.segments.length; i++) {
@@ -96,7 +86,6 @@
         return false;
       }
       
-      // Draws the snake onto the canvas.
       draw(ctx) {
         ctx.fillStyle = this.color;
         for (const segment of this.segments) {
@@ -109,9 +98,8 @@
 
     // ----- Initialization -----
     function init() {
-      // User snake starts roughly at the left quarter; AI snake at the right quarter.
       userSnake = new Snake({ x: Math.floor(gridWidth / 4), y: Math.floor(gridHeight / 2) }, 'right', 'blue');
-      aiSnake   = new Snake({ x: Math.floor(3 * gridWidth / 4), y: Math.floor(gridHeight / 2) }, 'left', 'red');
+      aiSnake = new Snake({ x: Math.floor(3 * gridWidth / 4), y: Math.floor(gridHeight / 2) }, 'left', 'red');
       spawnToken();
       gameOver = false;
       if (intervalId) clearInterval(intervalId);
@@ -120,12 +108,10 @@
 
     // ----- Token (Food) Handling -----
     function spawnToken() {
-      // If no tokens remain, do not spawn a token.
       if (remainingTokens <= 0) {
         tokenPosition = null;
         return;
       }
-      // Decrement token supply and spawn a token in a valid cell.
       remainingTokens--;
       let valid = false;
       let pos;
@@ -145,60 +131,72 @@
     function gameLoop() {
       if (gameOver) return;
       
-      // Determine next head positions for both snakes (for token detection and AI movement).
+      // Get next positions before moving
       const userNextHead = getNextHead(userSnake);
       updateAIDirection();
       const aiNextHead = getNextHead(aiSnake);
       
-      // Check if either snake will eat the token.
-      let userGrow = false, aiGrow = false;
-      if (tokenPosition &&
-          userNextHead.x === tokenPosition.x &&
-          userNextHead.y === tokenPosition.y) {
-        userGrow = true;
-        userSnake.tokenCount++;
-        spawnToken();
-      }
-      if (tokenPosition &&
-          aiNextHead.x === tokenPosition.x &&
-          aiNextHead.y === tokenPosition.y) {
-        aiGrow = true;
-        aiSnake.tokenCount++;
-        spawnToken();
-      }
+      // Check wall collisions first
+      const userWallCollision = isWallCollision(userNextHead);
+      const aiWallCollision = isWallCollision(aiNextHead);
       
-      // Move both snakes.
-      const newUserHead = userSnake.move(userGrow);
-      const newAIHead   = aiSnake.move(aiGrow);
-      
-      // Check for collisions with walls or self.
-      if (checkCollision(newUserHead, userSnake)) {
-        endGame('AI', 'collision'); // If the user crashes, AI wins.
+      if (userWallCollision && aiWallCollision) {
+        endGame('Tie', 'collision');
         return;
-      }
-      if (checkCollision(newAIHead, aiSnake)) {
-        endGame('User', 'collision'); // If the AI crashes, User wins.
-        return;
-      }
-      
-      // Check for head-to-head collision.
-      if (newUserHead.x === newAIHead.x && newUserHead.y === newAIHead.y) {
-        endGame(null, 'collision'); // Declare a tie.
-        return;
-      }
-      
-      // Check opponent collisions using the new positions.
-      // We check if the new head of one snake lands on any body cell (excluding the head) of the opponent.
-      if (aiSnake.segments.slice(1).some(segment => segment.x === newUserHead.x && segment.y === newUserHead.y)) {
+      } else if (userWallCollision) {
         endGame('AI', 'collision');
         return;
-      }
-      if (userSnake.segments.slice(1).some(segment => segment.x === newAIHead.x && segment.y === newAIHead.y)) {
+      } else if (aiWallCollision) {
         endGame('User', 'collision');
         return;
       }
       
-      // If no token is on the board and token supply is exhausted, end the game.
+      // Check if either snake will eat the token
+      let userGrow = false, aiGrow = false;
+      if (tokenPosition) {
+        if (userNextHead.x === tokenPosition.x && userNextHead.y === tokenPosition.y) {
+          userGrow = true;
+          userSnake.tokenCount++;
+          spawnToken();
+        }
+        if (aiNextHead.x === tokenPosition.x && aiNextHead.y === tokenPosition.y) {
+          aiGrow = true;
+          aiSnake.tokenCount++;
+          spawnToken();
+        }
+      }
+      
+      // Move both snakes
+      userSnake.move(userGrow);
+      aiSnake.move(aiGrow);
+      
+      // Check for head-to-head collision
+      if (userNextHead.x === aiNextHead.x && userNextHead.y === aiNextHead.y) {
+        endGame('Tie', 'collision');
+        return;
+      }
+      
+      // Check for self-collisions
+      if (userSnake.contains(userNextHead, false)) {
+        endGame('AI', 'collision');
+        return;
+      }
+      if (aiSnake.contains(aiNextHead, false)) {
+        endGame('User', 'collision');
+        return;
+      }
+      
+      // Check for collisions with opponent's body
+      if (aiSnake.contains(userNextHead, true)) {
+        endGame('AI', 'collision');
+        return;
+      }
+      if (userSnake.contains(aiNextHead, true)) {
+        endGame('User', 'collision');
+        return;
+      }
+      
+      // Check if game should end due to token exhaustion
       if (remainingTokens <= 0 && tokenPosition === null) {
         endGame(null, 'tokens');
         return;
@@ -207,7 +205,6 @@
       drawGame();
     }
 
-    // Returns the next head position for a snake (without updating its segments).
     function getNextHead(snake) {
       const head = snake.segments[0];
       const newHead = { x: head.x, y: head.y };
@@ -220,19 +217,8 @@
       return newHead;
     }
 
-    // Checks if the new head position is outside the grid or collides with the snake itself.
-    function checkCollision(newHead, snake) {
-      // Wall collisions.
-      if (newHead.x < 0 || newHead.x >= gridWidth || newHead.y < 0 || newHead.y >= gridHeight) {
-        return true;
-      }
-      // Self-collision (ignoring the head).
-      for (let i = 1; i < snake.segments.length; i++) {
-        if (snake.segments[i].x === newHead.x && snake.segments[i].y === newHead.y) {
-          return true;
-        }
-      }
-      return false;
+    function isWallCollision(pos) {
+      return pos.x < 0 || pos.x >= gridWidth || pos.y < 0 || pos.y >= gridHeight;
     }
 
     // ----- AI Logic -----
@@ -244,7 +230,6 @@
       let bestDistance = Infinity;
       
       for (const dir of possibleDirections) {
-        // Prevent the AI from reversing.
         if (isOpposite(aiSnake.direction, dir)) continue;
         
         const nextPos = getNextHeadForDirection(aiSnake, dir);
@@ -260,10 +245,8 @@
       if (bestDirection) {
         aiSnake.direction = bestDirection;
       }
-      // If no safe move is found, the AI continues in its current direction.
     }
 
-    // Returns the next head position for a snake if it moved in the given direction.
     function getNextHeadForDirection(snake, direction) {
       const head = snake.segments[0];
       const newHead = { x: head.x, y: head.y };
@@ -276,14 +259,12 @@
       return newHead;
     }
 
-    // Returns true if pos is inside the grid and not occupied by any snake.
     function isSafe(pos) {
       if (pos.x < 0 || pos.x >= gridWidth || pos.y < 0 || pos.y >= gridHeight) return false;
       if (userSnake.contains(pos) || aiSnake.contains(pos)) return false;
       return true;
     }
 
-    // Returns true if dir1 and dir2 are opposites.
     function isOpposite(dir1, dir2) {
       return (dir1 === 'up' && dir2 === 'down') ||
              (dir1 === 'down' && dir2 === 'up') ||
@@ -295,7 +276,6 @@
     function drawGame() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Draw the token (if one exists).
       if (tokenPosition) {
         ctx.fillStyle = 'green';
         ctx.fillRect(tokenPosition.x * cellSize, tokenPosition.y * cellSize, cellSize, cellSize);
@@ -303,15 +283,11 @@
         ctx.strokeRect(tokenPosition.x * cellSize, tokenPosition.y * cellSize, cellSize, cellSize);
       }
       
-      // Draw the snakes.
       userSnake.draw(ctx);
       aiSnake.draw(ctx);
     }
 
     // ----- Game Over -----
-    // mode is either 'collision' or 'tokens'
-    // For a collision, the 'winner' parameter indicates which snake survived.
-    // For token exhaustion, the winner is determined by comparing token counts.
     function endGame(winner, mode) {
       gameOver = true;
       let finalWinner;
@@ -323,12 +299,11 @@
         } else {
           finalWinner = 'Tie';
         }
-      } else { // collision mode
+      } else {
         finalWinner = winner;
       }
       clearInterval(intervalId);
       
-      // Display a translucent overlay with the result.
       ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
       ctx.fillRect(0, canvas.height / 2 - 30, canvas.width, 60);
       ctx.fillStyle = 'white';
@@ -356,7 +331,6 @@
       }
     });
 
-    // Touch (swipe) support for mobile.
     canvas.addEventListener('touchstart', function(e) {
       if (e.touches.length > 0) {
         const touch = e.touches[0];
