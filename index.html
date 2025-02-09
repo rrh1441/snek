@@ -52,7 +52,7 @@
     let intervalId;           // for the game loop timer
 
     // Total tokens that can appear during the game.
-    let remainingTokens = 100; // <-- Changed from 20 to 100 tokens
+    let remainingTokens = 100; // Set token supply to 100
 
     // For touch/swipe support:
     let swipeStart = null;
@@ -141,27 +141,11 @@
       tokenPosition = pos;
     }
 
-    // ----- Helper: Opponent Collision Check -----
-    // Checks if newHead collides with any cell in opponentOldSegments.
-    // If the opponent is not growing this tick, we ignore the last segment (the tail)
-    // since that cell will be freed.
-    function collidesWithOpponent(newHead, opponentOldSegments, opponentGrew) {
-      let segmentsToCheck = opponentOldSegments;
-      if (!opponentGrew && opponentOldSegments.length > 0) {
-        segmentsToCheck = opponentOldSegments.slice(0, opponentOldSegments.length - 1);
-      }
-      return segmentsToCheck.some(segment => segment.x === newHead.x && segment.y === newHead.y);
-    }
-
     // ----- Game Loop -----
     function gameLoop() {
       if (gameOver) return;
       
-      // Save the current positions for opponent collision detection.
-      const oldUserSegments = userSnake.segments.slice();
-      const oldAISegments  = aiSnake.segments.slice();
-      
-      // Determine next head positions for both snakes (without moving yet).
+      // Determine next head positions for both snakes (for token detection and AI movement).
       const userNextHead = getNextHead(userSnake);
       updateAIDirection();
       const aiNextHead = getNextHead(aiSnake);
@@ -189,25 +173,32 @@
       
       // Check for collisions with walls or self.
       if (checkCollision(newUserHead, userSnake)) {
-        endGame('User', 'collision'); // User crashed → AI wins.
+        endGame('AI', 'collision'); // If the user crashes, AI wins.
         return;
       }
       if (checkCollision(newAIHead, aiSnake)) {
-        endGame('AI', 'collision');   // AI crashed → User wins.
+        endGame('User', 'collision'); // If the AI crashes, User wins.
         return;
       }
       
-      // ----- Opponent Collision Checks -----
-      if (collidesWithOpponent(newUserHead, oldAISegments, aiGrow)) {
-        endGame('User', 'collision'); // User’s head collided with a cell previously occupied by AI.
-        return;
-      }
-      if (collidesWithOpponent(newAIHead, oldUserSegments, userGrow)) {
-        endGame('AI', 'collision');   // AI’s head collided with a cell previously occupied by User.
+      // Check for head-to-head collision.
+      if (newUserHead.x === newAIHead.x && newUserHead.y === newAIHead.y) {
+        endGame(null, 'collision'); // Declare a tie.
         return;
       }
       
-      // If no token is on the board and the supply is exhausted, end the game.
+      // Check opponent collisions using the new positions.
+      // We check if the new head of one snake lands on any body cell (excluding the head) of the opponent.
+      if (aiSnake.segments.slice(1).some(segment => segment.x === newUserHead.x && segment.y === newUserHead.y)) {
+        endGame('AI', 'collision');
+        return;
+      }
+      if (userSnake.segments.slice(1).some(segment => segment.x === newAIHead.x && segment.y === newAIHead.y)) {
+        endGame('User', 'collision');
+        return;
+      }
+      
+      // If no token is on the board and token supply is exhausted, end the game.
       if (remainingTokens <= 0 && tokenPosition === null) {
         endGame(null, 'tokens');
         return;
@@ -253,6 +244,7 @@
       let bestDistance = Infinity;
       
       for (const dir of possibleDirections) {
+        // Prevent the AI from reversing.
         if (isOpposite(aiSnake.direction, dir)) continue;
         
         const nextPos = getNextHeadForDirection(aiSnake, dir);
@@ -319,7 +311,7 @@
     // ----- Game Over -----
     // mode is either 'collision' or 'tokens'
     // For a collision, the 'winner' parameter indicates which snake survived.
-    // For tokens exhaustion, the winner is determined by comparing token counts.
+    // For token exhaustion, the winner is determined by comparing token counts.
     function endGame(winner, mode) {
       gameOver = true;
       let finalWinner;
