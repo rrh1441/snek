@@ -28,7 +28,7 @@
   <canvas id="gameCanvas"></canvas>
 
   <script>
-    // ----- Set Up Canvas Dimensions for Mobile/Computer -----
+    // ----- Responsive Canvas Setup -----
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
@@ -44,12 +44,15 @@
     const gridWidth = gridCount;  // in cells
     const gridHeight = gridCount; // in cells
 
-    // ----- Global Variables -----
+    // ----- Global Game Variables -----
     let userSnake, aiSnake;
     let tokenPosition = null;
     let gameOver = false;
     const moveInterval = 200; // game tick in milliseconds
-    let intervalId;           // to hold the interval timer
+    let intervalId;           // for the game loop timer
+
+    // Total tokens that can appear during the game.
+    let remainingTokens = 100; // <-- Changed from 20 to 100 tokens
 
     // For touch/swipe support:
     let swipeStart = null;
@@ -57,8 +60,8 @@
     // ----- Snake Class -----
     class Snake {
       constructor(initialPosition, direction, color) {
-        this.segments = [initialPosition];  // Array of objects { x, y } in grid coordinates
-        this.direction = direction;         // "up", "down", "left", "right"
+        this.segments = [initialPosition];  // Array of objects { x, y } (grid coordinates)
+        this.direction = direction;         // "up", "down", "left", or "right"
         this.tokenCount = 0;
         this.color = color;
       }
@@ -117,6 +120,13 @@
 
     // ----- Token (Food) Handling -----
     function spawnToken() {
+      // If no tokens remain, do not spawn a token.
+      if (remainingTokens <= 0) {
+        tokenPosition = null;
+        return;
+      }
+      // Decrement token supply and spawn a token in a valid cell.
+      remainingTokens--;
       let valid = false;
       let pos;
       while (!valid) {
@@ -132,8 +142,9 @@
     }
 
     // ----- Helper: Opponent Collision Check -----
-    // Checks if newHead collides with any cell in opponentOldSegments,
-    // but if the opponent is not growing then the last cell (the tail) is ignored.
+    // Checks if newHead collides with any cell in opponentOldSegments.
+    // If the opponent is not growing this tick, we ignore the last segment (the tail)
+    // since that cell will be freed.
     function collidesWithOpponent(newHead, opponentOldSegments, opponentGrew) {
       let segmentsToCheck = opponentOldSegments;
       if (!opponentGrew && opponentOldSegments.length > 0) {
@@ -150,10 +161,8 @@
       const oldUserSegments = userSnake.segments.slice();
       const oldAISegments  = aiSnake.segments.slice();
       
-      // Determine next head positions for both snakes (without moving yet)
+      // Determine next head positions for both snakes (without moving yet).
       const userNextHead = getNextHead(userSnake);
-      
-      // Let the AI update its direction first.
       updateAIDirection();
       const aiNextHead = getNextHead(aiSnake);
       
@@ -180,28 +189,34 @@
       
       // Check for collisions with walls or self.
       if (checkCollision(newUserHead, userSnake)) {
-        endGame('AI');
+        endGame('User', 'collision'); // User crashed → AI wins.
         return;
       }
       if (checkCollision(newAIHead, aiSnake)) {
-        endGame('User');
+        endGame('AI', 'collision');   // AI crashed → User wins.
         return;
       }
       
       // ----- Opponent Collision Checks -----
       if (collidesWithOpponent(newUserHead, oldAISegments, aiGrow)) {
-        endGame('AI');
+        endGame('User', 'collision'); // User’s head collided with a cell previously occupied by AI.
         return;
       }
       if (collidesWithOpponent(newAIHead, oldUserSegments, userGrow)) {
-        endGame('User');
+        endGame('AI', 'collision');   // AI’s head collided with a cell previously occupied by User.
+        return;
+      }
+      
+      // If no token is on the board and the supply is exhausted, end the game.
+      if (remainingTokens <= 0 && tokenPosition === null) {
+        endGame(null, 'tokens');
         return;
       }
       
       drawGame();
     }
 
-    // Returns what the next head position would be for a given snake.
+    // Returns the next head position for a snake (without updating its segments).
     function getNextHead(snake) {
       const head = snake.segments[0];
       const newHead = { x: head.x, y: head.y };
@@ -238,13 +253,11 @@
       let bestDistance = Infinity;
       
       for (const dir of possibleDirections) {
-        // Prevent the AI from reversing.
         if (isOpposite(aiSnake.direction, dir)) continue;
         
         const nextPos = getNextHeadForDirection(aiSnake, dir);
         if (!isSafe(nextPos)) continue;
         
-        // Use Manhattan distance as a heuristic.
         const dist = Math.abs(nextPos.x - tokenPosition.x) + Math.abs(nextPos.y - tokenPosition.y);
         if (dist < bestDistance) {
           bestDistance = dist;
@@ -288,10 +301,9 @@
 
     // ----- Drawing -----
     function drawGame() {
-      // Clear the canvas.
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Draw the token.
+      // Draw the token (if one exists).
       if (tokenPosition) {
         ctx.fillStyle = 'green';
         ctx.fillRect(tokenPosition.x * cellSize, tokenPosition.y * cellSize, cellSize, cellSize);
@@ -305,15 +317,22 @@
     }
 
     // ----- Game Over -----
-    // When the game ends, display the winner.
-    // Even if a snake survives, if it has fewer tokens than the opponent it loses.
-    function endGame(winner) {
+    // mode is either 'collision' or 'tokens'
+    // For a collision, the 'winner' parameter indicates which snake survived.
+    // For tokens exhaustion, the winner is determined by comparing token counts.
+    function endGame(winner, mode) {
       gameOver = true;
-      let finalWinner = winner;
-      if (winner === 'User' && userSnake.tokenCount < aiSnake.tokenCount) {
-        finalWinner = 'AI (by token advantage)';
-      } else if (winner === 'AI' && aiSnake.tokenCount < userSnake.tokenCount) {
-        finalWinner = 'User (by token advantage)';
+      let finalWinner;
+      if (mode === 'tokens') {
+        if (userSnake.tokenCount > aiSnake.tokenCount) {
+          finalWinner = 'User';
+        } else if (aiSnake.tokenCount > userSnake.tokenCount) {
+          finalWinner = 'AI';
+        } else {
+          finalWinner = 'Tie';
+        }
+      } else { // collision mode
+        finalWinner = winner;
       }
       clearInterval(intervalId);
       
@@ -360,14 +379,12 @@
       const dx = swipeEnd.x - swipeStart.x;
       const dy = swipeEnd.y - swipeStart.y;
       if (Math.abs(dx) > Math.abs(dy)) {
-        // Horizontal swipe.
         if (dx > 0 && userSnake.direction !== 'left') {
           userSnake.direction = 'right';
         } else if (dx < 0 && userSnake.direction !== 'right') {
           userSnake.direction = 'left';
         }
       } else {
-        // Vertical swipe.
         if (dy > 0 && userSnake.direction !== 'up') { 
           userSnake.direction = 'down';
         } else if (dy < 0 && userSnake.direction !== 'down') {
