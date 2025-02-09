@@ -25,17 +25,26 @@
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas" width="600" height="600"></canvas>
+  <canvas id="gameCanvas"></canvas>
 
   <script>
-    // ====== Configuration & Global Variables ======
+    // ----- Set Up Canvas Dimensions for Mobile/Computer -----
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
-    const cellSize = 20;                         // Each grid cell is 20x20 pixels.
-    const gridWidth = canvas.width / cellSize;     // e.g. 600/20 = 30 cells across
-    const gridHeight = canvas.height / cellSize;   // 30 cells down
+    // Use the smaller of the viewport's width or height (minus a margin)
+    const margin = 20;
+    const availableSize = Math.min(window.innerWidth, window.innerHeight) - margin;
+    canvas.width = availableSize;
+    canvas.height = availableSize;
 
+    // ----- Grid Settings -----
+    const gridCount = 30;  // Number of cells along one side
+    const cellSize = canvas.width / gridCount;  // Calculate cell size based on canvas size
+    const gridWidth = gridCount;  // in cells
+    const gridHeight = gridCount; // in cells
+
+    // ----- Global Variables -----
     let userSnake, aiSnake;
     let tokenPosition = null;
     let gameOver = false;
@@ -45,10 +54,10 @@
     // For touch/swipe support:
     let swipeStart = null;
 
-    // ====== Snake Class ======
+    // ----- Snake Class -----
     class Snake {
       constructor(initialPosition, direction, color) {
-        this.segments = [initialPosition];  // Array of objects { x, y }
+        this.segments = [initialPosition];  // Array of objects { x, y } in grid coordinates
         this.direction = direction;         // "up", "down", "left", "right"
         this.tokenCount = 0;
         this.color = color;
@@ -95,7 +104,7 @@
       }
     }
 
-    // ====== Initialization ======
+    // ----- Initialization -----
     function init() {
       // User snake starts roughly at the left quarter; AI snake at the right quarter.
       userSnake = new Snake({ x: Math.floor(gridWidth / 4), y: Math.floor(gridHeight / 2) }, 'right', 'blue');
@@ -106,7 +115,7 @@
       intervalId = setInterval(gameLoop, moveInterval);
     }
 
-    // ====== Token (Food) Handling ======
+    // ----- Token (Food) Handling -----
     function spawnToken() {
       let valid = false;
       let pos;
@@ -122,24 +131,22 @@
       tokenPosition = pos;
     }
 
-    // ====== Helper: Opponent Collision Check ======
+    // ----- Helper: Opponent Collision Check -----
     // Checks if newHead collides with any cell in opponentOldSegments,
-    // but if the opponent is not growing then the last cell (the tail) is not considered.
+    // but if the opponent is not growing then the last cell (the tail) is ignored.
     function collidesWithOpponent(newHead, opponentOldSegments, opponentGrew) {
       let segmentsToCheck = opponentOldSegments;
       if (!opponentGrew && opponentOldSegments.length > 0) {
-        // Remove the last segment—the tail—which will be freed.
         segmentsToCheck = opponentOldSegments.slice(0, opponentOldSegments.length - 1);
       }
       return segmentsToCheck.some(segment => segment.x === newHead.x && segment.y === newHead.y);
     }
 
-    // ====== Game Loop ======
+    // ----- Game Loop -----
     function gameLoop() {
       if (gameOver) return;
       
       // Save the current positions for opponent collision detection.
-      // (These are references to the objects that currently make up each snake.)
       const oldUserSegments = userSnake.segments.slice();
       const oldAISegments  = aiSnake.segments.slice();
       
@@ -181,16 +188,12 @@
         return;
       }
       
-      // --- Opponent Collision Checks ---
-      // Instead of checking the new state of the opponent (which may have freed a tail cell),
-      // check the previous positions—but ignore the tail if the opponent isn’t growing.
+      // ----- Opponent Collision Checks -----
       if (collidesWithOpponent(newUserHead, oldAISegments, aiGrow)) {
-        // User ran into a cell previously occupied by AI.
         endGame('AI');
         return;
       }
       if (collidesWithOpponent(newAIHead, oldUserSegments, userGrow)) {
-        // AI ran into a cell previously occupied by User.
         endGame('User');
         return;
       }
@@ -226,7 +229,7 @@
       return false;
     }
 
-    // ====== AI Logic ======
+    // ----- AI Logic -----
     function updateAIDirection() {
       if (!tokenPosition) return;
       
@@ -241,7 +244,7 @@
         const nextPos = getNextHeadForDirection(aiSnake, dir);
         if (!isSafe(nextPos)) continue;
         
-        // Use Manhattan distance as a simple heuristic.
+        // Use Manhattan distance as a heuristic.
         const dist = Math.abs(nextPos.x - tokenPosition.x) + Math.abs(nextPos.y - tokenPosition.y);
         if (dist < bestDistance) {
           bestDistance = dist;
@@ -283,7 +286,7 @@
              (dir1 === 'right' && dir2 === 'left');
     }
 
-    // ====== Drawing ======
+    // ----- Drawing -----
     function drawGame() {
       // Clear the canvas.
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -301,7 +304,7 @@
       aiSnake.draw(ctx);
     }
 
-    // ====== Game Over ======
+    // ----- Game Over -----
     // When the game ends, display the winner.
     // Even if a snake survives, if it has fewer tokens than the opponent it loses.
     function endGame(winner) {
@@ -323,7 +326,7 @@
       ctx.fillText('Game Over! Winner: ' + finalWinner, canvas.width / 2, canvas.height / 2 + 10);
     }
 
-    // ====== User Input (Keyboard & Touch) ======
+    // ----- User Input (Keyboard & Touch) -----
     document.addEventListener('keydown', function(e) {
       if (gameOver) return;
       switch(e.key) {
@@ -374,7 +377,7 @@
       swipeStart = null;
     });
 
-    // ====== Start the Game ======
+    // ----- Start the Game -----
     init();
     drawGame();
   </script>
