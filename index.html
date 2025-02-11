@@ -5,7 +5,7 @@
   <title>Snake Game: User vs. AI</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    /* Center the canvas and give it a border */
+    /* Use a flex column layout so the canvas and instructions stack vertically */
     body {
       margin: 0;
       background-color: #eee;
@@ -18,26 +18,34 @@
       user-select: none;
       -webkit-user-select: none;
     }
+    /* Container for the game canvas and instructions */
+    #gameContainer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
     canvas {
       background-color: #fff;
       border: 2px solid #000;
       touch-action: none; /* Prevent scrolling on mobile */
     }
-    /* Style for instructions */
+    /* Instructions styling */
     #instructions {
-      margin-top: 20px;
+      margin-top: 10px;
       text-align: center;
       font-family: Arial, sans-serif;
       color: #333;
+      padding: 0 10px;
     }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
-  
-  <div id="instructions">
-    <p><strong>For mobile users:</strong> Control your snake by swiping up, down, left, or right.</p>
-    <p><strong>For computer users:</strong> Control your snake with the arrow keys.</p>
+  <div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+    <div id="instructions">
+      <p><strong>For mobile users:</strong> Control your snake by swiping up, down, left, or right.</p>
+      <p><strong>For computer users:</strong> Control your snake with the arrow keys.</p>
+    </div>
   </div>
 
   <script>
@@ -45,22 +53,26 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const margin = 20;
-    const availableSize = Math.min(window.innerWidth, window.innerHeight) - margin;
+    // Reserve space for instructions (e.g., 80px)
+    const instructionsHeight = 80;
+    const availableWidth = window.innerWidth - margin;
+    const availableHeight = window.innerHeight - margin - instructionsHeight;
+    const availableSize = Math.min(availableWidth, availableHeight);
     canvas.width = availableSize;
     canvas.height = availableSize;
 
     // ----- Grid Settings -----
-    const gridCount = 30;  
-    const cellSize = canvas.width / gridCount;  
-    const gridWidth = gridCount;  
-    const gridHeight = gridCount; 
+    const gridCount = 30;  // Number of cells along one side
+    const cellSize = canvas.width / gridCount;  // Calculate cell size based on canvas size
+    const gridWidth = gridCount;  // in cells
+    const gridHeight = gridCount; // in cells
 
     // ----- Global Game Variables -----
     let userSnake, aiSnake;
     let tokenPosition = null;
     let gameOver = false;
-    const moveInterval = 200; 
-    let intervalId;           
+    const moveInterval = 200; // game tick in milliseconds
+    let intervalId;           // for the game loop timer
     let remainingTokens = 100; // 100 tokens will appear
     let swipeStart = null;
 
@@ -68,7 +80,7 @@
     class Snake {
       constructor(initialPosition, direction, color) {
         this.segments = [initialPosition];  // in grid coordinates {x, y}
-        this.direction = direction;         
+        this.direction = direction;
         this.tokenCount = 0;
         this.color = color;
       }
@@ -228,7 +240,7 @@
       return newHead;
     }
 
-    // Check if the new head collides with a wall or with its own body.
+    // Check if the new head collides with a wall or its own body.
     function checkCollision(newHead, snake) {
       if (newHead.x < 0 || newHead.x >= gridWidth || newHead.y < 0 || newHead.y >= gridHeight) return true;
       for (let i = 1; i < snake.segments.length; i++) {
@@ -278,7 +290,7 @@
       return true;
     }
 
-    // Returns true if dir1 and dir2 are opposites.
+    // Returns true if two directions are opposites.
     function isOpposite(dir1, dir2) {
       return (dir1 === 'up' && dir2 === 'down') ||
              (dir1 === 'down' && dir2 === 'up') ||
@@ -300,7 +312,7 @@
     }
 
     // ----- Game Over -----
-    // mode is either 'collision' or 'tokens'. For token exhaustion, decide winner by token counts.
+    // mode is either 'collision' or 'tokens'. For token exhaustion, decide winner by token count.
     function endGame(winner, mode) {
       gameOver = true;
       let finalWinner;
