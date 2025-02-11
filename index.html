@@ -12,11 +12,18 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: center; /* centered vertically on mobile */
       min-height: 100vh;
       overflow: hidden;
       user-select: none;
       -webkit-user-select: none;
+    }
+    /* On larger screens, align content toward the top with a bit of padding */
+    @media (min-width: 600px) {
+      body {
+        justify-content: flex-start;
+        padding-top: 20px;
+      }
     }
     /* Container for the game canvas and instructions */
     #gameContainer {
